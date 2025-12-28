@@ -2,6 +2,12 @@
 # Example Parent Playbook
 # This demonstrates how to integrate the Google Drive backup project
 # into a larger Ansible deployment workflow.
+#
+# ANSIBLE VAULT USAGE:
+# This example shows how to use Ansible Vault for OAuth credentials.
+# See docs/ANSIBLE_VAULT_SETUP.md for complete setup instructions.
+#
+# Deploy with: ansible-playbook example_parent_playbook.yml -i inventory.ini --ask-vault-pass
 
 - name: Example - Deploy Application with Google Drive Backups
   hosts: production_servers
@@ -14,18 +20,25 @@
 
     # --- Backup Repository Configuration ---
     backup_repo_url: "https://github.com/yourorg/gdrive-backup.git"
-    backup_repo_version: "main"  # or a specific tag/commit
+    backup_repo_version: "main" # or a specific tag/commit
     backup_repo_dest: "/opt/gdrive-backup"
 
     # --- Backup Configuration ---
     gdrive_remote_name: "gdrive"
     gdrive_folder_name: "production_backups"
-    backup_schedule: "0 3 * * *"  # 3 AM daily
+    backup_schedule: "0 3 * * *" # 3 AM daily
 
-    # --- Rclone Configuration ---
-    # Path where your rclone.conf will be stored on the server
-    rclone_config_source: "files/rclone.conf"  # In your parent playbook's files/
-    rclone_config_dest: "/etc/gdrive-backup/rclone.conf"
+    # --- OAuth Configuration (from Ansible Vault) ---
+    # Actual credentials should be in group_vars/all/vault.yml
+    # These variables reference the vaulted values:
+    # rclone_remote_name: "{{ vault_rclone_remote_name }}"
+    # rclone_scope: "{{ vault_rclone_scope }}"
+    # rclone_token: "{{ vault_rclone_token }}"
+    #
+    # See docs/ANSIBLE_VAULT_SETUP.md for instructions on:
+    # 1. Extracting OAuth values from rclone config
+    # 2. Creating encrypted vault file
+    # 3. Running playbook with vault password
 
   tasks:
     # ===================================================================
@@ -51,7 +64,7 @@
       file:
         path: "/var/lib/{{ app_name }}"
         state: directory
-        mode: '0755'
+        mode: "0755"
 
     - name: Deploy main application container
       community.docker.docker_container:
@@ -79,27 +92,31 @@
         dest: "{{ backup_repo_dest }}"
         version: "{{ backup_repo_version }}"
         force: yes
-      tags: ['backup']
+      tags: ["backup"]
 
     - name: Ensure rclone config directory exists
       file:
         path: "{{ rclone_config_dest | dirname }}"
         state: directory
-        mode: '0700'
-      tags: ['backup']
+        mode: "0700"
+      tags: ["backup"]
 
-    - name: Deploy rclone configuration
-      copy:
-        src: "{{ rclone_config_source }}"
-        dest: "{{ rclone_config_dest }}"
-        mode: '0600'
-      tags: ['backup']
+    # NOTE: Rclone config is generated from vault by deploy_docker.yml
+    # No need to copy files manually when using Ansible Vault
+    # If you prefer file-based approach, uncomment below:
+    #
+    # - name: Deploy rclone configuration (file-based approach)
+    #   copy:
+    #     src: "{{ rclone_config_source }}"
+    #     dest: "{{ rclone_config_dest }}"
+    #     mode: '0600'
+    #   tags: ['backup']
 
     - name: Include backup deployment playbook
       include_tasks:
         file: "{{ backup_repo_dest }}/deploy_docker.yml"
         apply:
-          tags: ['backup']
+          tags: ["backup"]
       vars:
         container_name: "{{ app_name }}_backup"
         db_path: "{{ app_database_path }}"
@@ -108,7 +125,7 @@
         backup_schedule: "{{ backup_schedule }}"
         rclone_config_path: "{{ rclone_config_dest }}"
         run_on_startup: "false"
-      tags: ['backup']
+      tags: ["backup"]
 
     # ===================================================================
     # PHASE 3: Verification
@@ -118,13 +135,13 @@
       community.docker.docker_container_info:
         name: "{{ app_name }}"
       register: app_container
-      tags: ['verify']
+      tags: ["verify"]
 
     - name: Verify backup container is running
       community.docker.docker_container_info:
         name: "{{ app_name }}_backup"
       register: backup_container
-      tags: ['backup', 'verify']
+      tags: ["backup", "verify"]
 
     - name: Display deployment summary
       debug:
@@ -148,27 +165,45 @@
             - View backup logs: docker logs -f {{ app_name }}_backup
             - Manual backup: docker exec {{ app_name }}_backup /scripts/backup_sqlite.sh
             - Check backups: rclone ls {{ gdrive_remote_name }}:{{ gdrive_folder_name }} --config {{ rclone_config_dest }}
-      tags: ['verify']
-
+      tags: ["verify"]
 # =====================================================================
 # USAGE INSTRUCTIONS
 # =====================================================================
 #
-# 1. Prerequisites:
-#    - Set up your rclone config with Google Drive OAuth
-#    - Copy rclone.conf to your parent playbook's files/ directory
-#    - Update the vars section with your configuration
+# OPTION 1: Using Ansible Vault (Recommended for Production)
+# -----------------------------------------------------------
+# 1. Configure OAuth and create vault:
+#    rclone config  # Set up OAuth
+#    ansible-vault create group_vars/all/vault.yml
+#    # Add: vault_rclone_remote_name, vault_rclone_scope, vault_rclone_token
+#    # See docs/ANSIBLE_VAULT_SETUP.md for details
 #
-# 2. Run the full playbook:
-#    ansible-playbook example_parent_playbook.yml -i inventory.ini
+# 2. Create group_vars/all/vars.yml:
+#    rclone_remote_name: "{{ vault_rclone_remote_name }}"
+#    rclone_scope: "{{ vault_rclone_scope }}"
+#    rclone_token: "{{ vault_rclone_token }}"
 #
-# 3. Run only backup deployment:
-#    ansible-playbook example_parent_playbook.yml -i inventory.ini --tags backup
+# 3. Run the full playbook:
+#    ansible-playbook example_parent_playbook.yml -i inventory.ini --ask-vault-pass
 #
-# 4. Run only verification:
+# 4. Run only backup deployment:
+#    ansible-playbook example_parent_playbook.yml -i inventory.ini --tags backup --ask-vault-pass
+#
+# OPTION 2: Using File Copy (Quick Testing)
+# -----------------------------------------------------------
+# 1. Uncomment the "Deploy rclone configuration" task above
+# 2. Copy your rclone.conf to files/rclone.conf
+# 3. Run: ansible-playbook example_parent_playbook.yml -i inventory.ini
+#
+# OTHER COMMANDS:
+# -----------------------------------------------------------
+# Run only verification:
 #    ansible-playbook example_parent_playbook.yml -i inventory.ini --tags verify
 #
-# 5. Deploy to specific hosts:
+# Deploy to specific hosts:
 #    ansible-playbook example_parent_playbook.yml -i inventory.ini --limit prod-server-1
+#
+# Use vault password file:
+#    ansible-playbook example_parent_playbook.yml -i inventory.ini --vault-password-file .vault_pass
 #
 # =====================================================================

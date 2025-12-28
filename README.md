@@ -1,4 +1,4 @@
-# SQLite Google Drive Backup - Docker Edition
+# SQLite Google Drive Backup
 
 Automated SQLite database backup system that safely backs up databases to Google Drive using Docker, rclone, and OAuth authentication.
 
@@ -68,32 +68,6 @@ rclone ls gdrive:sqlite_backups --config ./rclone.conf
 - ✅ **Docker containerized** - runs anywhere Docker runs
 - ✅ **Production ready** - health checks, logging, restart policies
 - ✅ **Easy integration** - works with existing Ansible playbooks
-
----
-
-## 📁 Project Structure
-
-```
-sqlite-gdrive-backup/
-├── README.md                         # This file
-├── Dockerfile                        # Container image definition
-├── docker-compose.yml                # Docker Compose deployment
-├── deploy_docker.yml                 # Ansible deployment playbook
-├── example_parent_playbook.yml       # Integration example
-├── scripts/                          # Container scripts
-│   ├── backup_sqlite.sh              # Backup script
-│   └── entrypoint.sh                 # Container entrypoint
-├── files/                            # Configuration directory
-│   └── README.md                     # OAuth setup guide
-├── rclone.conf.example               # Example rclone config
-└── docs/
-    ├── DOCKER_DEPLOYMENT.md          # Complete deployment guide
-    ├── DOCKER_QUICK_START.md         # 5-minute quick start
-    ├── INTEGRATION_GUIDE.md          # Parent playbook integration
-    ├── DEPLOYMENT_SUMMARY.md         # Technical summary
-    ├── OAUTH_SETUP_COMPLETE.md       # OAuth guide
-    └── GOOGLE_DRIVE_SETUP.md         # Google Drive setup
-```
 
 ---
 
@@ -186,23 +160,43 @@ This project uses **OAuth authentication** (not service accounts).
 
 ### Setup OAuth
 
+**Option 1: Ansible Vault (Recommended for Production)**
+
 ```bash
 # 1. Configure rclone
 rclone config
 
-# 2. Choose: New remote → Google Drive → OAuth
-# 3. Follow browser prompts to authorize
-# 4. Copy config to deployment location
+# 2. Extract OAuth credentials
+cat ~/.config/rclone/rclone.conf
+# Note: remote name, scope, and token values
+
+# 3. Create encrypted vault
+ansible-vault create group_vars/all/vault.yml
+# Add: vault_rclone_remote_name, vault_rclone_scope, vault_rclone_token
+
+# 4. Deploy with vault
+ansible-playbook deploy_docker.yml -i production.ini --ask-vault-pass
+```
+
+**Option 2: File Copy (Quick Testing)**
+
+```bash
+# 1. Configure rclone
+rclone config
+
+# 2. Copy config for docker-compose
 cp ~/.config/rclone/rclone.conf ./rclone.conf
 ```
 
-**See:** [OAUTH_SETUP_COMPLETE.md](docs/OAUTH_SETUP_COMPLETE.md) for detailed instructions.
+**See:** 
+- [ANSIBLE_VAULT_SETUP.md](docs/ANSIBLE_VAULT_SETUP.md) - Extract OAuth values and use vault
+- [OAUTH_SETUP_COMPLETE.md](docs/OAUTH_SETUP_COMPLETE.md) - OAuth setup details
 
 ---
 
 ## 🔗 Integration with Ansible
 
-Easily integrate into existing infrastructure:
+Easily integrate into existing infrastructure using **Ansible Vault** for secure credential management:
 
 ```yaml
 ---
@@ -221,22 +215,28 @@ Easily integrate into existing infrastructure:
         repo: https://github.com/yourorg/sqlite-gdrive-backup.git
         dest: /opt/backup-system
     
-    # Deploy rclone config
-    - name: Copy rclone config
-      copy:
-        src: files/rclone.conf
-        dest: /etc/gdrive-backup/rclone.conf
-        mode: '0600'
+    # OAuth credentials are in Ansible Vault (encrypted)
+    # No manual file copying needed!
     
     # Deploy backup container
     - import_playbook: /opt/backup-system/deploy_docker.yml
       vars:
         db_path: /var/lib/myapp/db.sqlite
-        rclone_remote_name: gdrive
+        rclone_remote_name: "{{ vault_rclone_remote_name }}"
         drive_folder_name: production_backups
+        # OAuth token from vault
+        rclone_token: "{{ vault_rclone_token }}"
+        rclone_scope: "{{ vault_rclone_scope }}"
 ```
 
-**See:** [INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md) for complete integration patterns.
+**Deploy with vault:**
+```bash
+ansible-playbook deploy.yml -i production.ini --ask-vault-pass
+```
+
+**See:** 
+- [ANSIBLE_VAULT_SETUP.md](docs/ANSIBLE_VAULT_SETUP.md) - Secure credential management
+- [INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md) - Complete integration patterns
 
 ---
 
@@ -372,6 +372,7 @@ services:
 - **[example_parent_playbook.yml](example_parent_playbook.yml)** - Working example
 
 ### Configuration
+- **[ANSIBLE_VAULT_SETUP.md](docs/ANSIBLE_VAULT_SETUP.md)** - Secure credential management
 - **[OAUTH_SETUP_COMPLETE.md](docs/OAUTH_SETUP_COMPLETE.md)** - OAuth setup guide
 - **[GOOGLE_DRIVE_SETUP.md](docs/GOOGLE_DRIVE_SETUP.md)** - Google Drive setup
 - **[rclone.conf.example](rclone.conf.example)** - Configuration template

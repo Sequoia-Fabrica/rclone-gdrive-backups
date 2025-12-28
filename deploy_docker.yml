@@ -51,31 +51,31 @@
       file:
         path: "{{ build_context_path }}"
         state: directory
-        mode: '0755'
+        mode: "0755"
 
     - name: Copy Dockerfile to host
       copy:
         src: Dockerfile
         dest: "{{ build_context_path }}/Dockerfile"
-        mode: '0644'
+        mode: "0644"
 
     - name: Create scripts directory in build context
       file:
         path: "{{ build_context_path }}/scripts"
         state: directory
-        mode: '0755'
+        mode: "0755"
 
     - name: Copy backup script to host
       copy:
         src: scripts/backup_sqlite.sh
         dest: "{{ build_context_path }}/scripts/backup_sqlite.sh"
-        mode: '0755'
+        mode: "0755"
 
     - name: Copy entrypoint script to host
       copy:
         src: scripts/entrypoint.sh
         dest: "{{ build_context_path }}/scripts/entrypoint.sh"
-        mode: '0755'
+        mode: "0755"
 
     - name: Build Docker image
       community.docker.docker_image:
@@ -91,21 +91,15 @@
       file:
         path: "{{ rclone_config_path | dirname }}"
         state: directory
-        mode: '0700'
+        mode: "0700"
 
-    - name: Check if rclone config exists
-      stat:
-        path: "{{ rclone_config_path }}"
-      register: rclone_config_stat
-
-    - name: Warning if rclone config is missing
-      debug:
-        msg: |
-          WARNING: Rclone config not found at {{ rclone_config_path }}
-          You must provide your rclone.conf file before the container can run.
-          Copy your rclone config:
-            scp ~/.config/rclone/rclone.conf {{ inventory_hostname }}:{{ rclone_config_path }}
-      when: not rclone_config_stat.stat.exists
+    - name: Generate rclone config from vault
+      template:
+        src: templates/rclone.conf.j2
+        dest: "{{ rclone_config_path }}"
+        mode: "0600"
+      when: rclone_token is defined
+      no_log: true
 
     - name: Stop existing container if running
       community.docker.docker_container:
@@ -133,7 +127,7 @@
         log_options:
           max-size: "10m"
           max-file: "3"
-      when: rclone_config_stat.stat.exists
+      when: rclone_token is defined
 
     - name: Display container status
       debug:
@@ -149,7 +143,19 @@
             - View logs: docker logs -f {{ container_name }}
             - Run manual backup: docker exec {{ container_name }} /scripts/backup_sqlite.sh
             - Check container status: docker ps | grep {{ container_name }}
-      when: rclone_config_stat.stat.exists
+      when: rclone_token is defined
+
+    - name: Warning if OAuth credentials not provided
+      debug:
+        msg: |
+          WARNING: OAuth credentials not found in vault!
+
+          You must provide OAuth credentials via Ansible Vault.
+          See docs/ANSIBLE_VAULT_SETUP.md for instructions on:
+          1. Extracting OAuth values from rclone config
+          2. Creating encrypted vault file with credentials
+          3. Running playbook with vault password
+      when: rclone_token is not defined
 
     - name: Cleanup build context
       file:
