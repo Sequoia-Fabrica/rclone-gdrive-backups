@@ -25,13 +25,20 @@ COPY scripts/entrypoint.sh /scripts/entrypoint.sh
 RUN chmod +x /scripts/entrypoint.sh
 
 # Default environment variables (can be overridden)
-ENV DB_PATH="/data/db.sqlite"
+# Database sources (use one or more):
+ENV DB_PATH=""
+ENV DB_PATHS=""
+ENV DB_DIRS="/data"
+ENV DB_PATTERN="*.sqlite"
+
+# Backup configuration
 ENV BACKUP_STAGING_DIR="/backups"
 ENV RCLONE_REMOTE_NAME="gdrive"
 ENV DRIVE_FOLDER_NAME="sqlite_backups"
 ENV RCLONE_CONFIG_DIR="/etc/rclone"
 ENV BACKUP_SCHEDULE="30 2 * * *"
 ENV RUN_ON_STARTUP="false"
+ENV RETENTION_DAYS="30"
 
 # Health check to verify cron is running
 HEALTHCHECK --interval=60s --timeout=10s --start-period=5s --retries=3 \

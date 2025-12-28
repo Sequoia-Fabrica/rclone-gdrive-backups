@@ -119,13 +119,24 @@ docker run -d \
 
 ### Environment Variables
 
+#### Database Sources (use one or more)
+
+| Variable | Description | Default | Example |
+|----------|-------------|---------|---------|
+| `DB_PATH` | Single database file | - | `/data/app.sqlite` |
+| `DB_PATHS` | Multiple database files (colon or comma separated) | - | `/data/users.sqlite:/data/orders.sqlite` |
+| `DB_DIRS` | Directories to scan for databases | `/data` | `/data/apps:/var/lib/dbs` |
+| `DB_PATTERN` | Pattern for finding databases in `DB_DIRS` | `*.sqlite` | `*.db` or `app_*.sqlite` |
+
+#### Backup Configuration
+
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
-| `DB_PATH` | Path to database in container | `/data/db.sqlite` | Yes |
 | `RCLONE_REMOTE_NAME` | Name from rclone.conf | `gdrive` | Yes |
 | `DRIVE_FOLDER_NAME` | Folder in Google Drive | `sqlite_backups` | Yes |
 | `BACKUP_SCHEDULE` | Cron schedule | `30 2 * * *` | No |
 | `RUN_ON_STARTUP` | Run backup on start | `false` | No |
+| `RETENTION_DAYS` | Days to keep backups (0 to disable) | `30` | No |
 
 ### Backup Schedule Examples
 
@@ -142,6 +153,65 @@ BACKUP_SCHEDULE="0 3 * * 0"
 # Twice daily (6 AM and 6 PM)
 BACKUP_SCHEDULE="0 6,18 * * *"
 ```
+
+---
+
+## 📊 Multi-Database Support
+
+Back up multiple SQLite databases with a single container.
+
+### Method 1: Specific Files
+
+```yaml
+environment:
+  - DB_PATHS=/data/users.sqlite:/data/orders.sqlite:/data/logs.sqlite
+volumes:
+  - /var/lib/app/users.sqlite:/data/users.sqlite:ro
+  - /var/lib/app/orders.sqlite:/data/orders.sqlite:ro
+  - /var/lib/app/logs.sqlite:/data/logs.sqlite:ro
+```
+
+### Method 2: Scan Directory
+
+```yaml
+environment:
+  - DB_DIRS=/data
+  - DB_PATTERN=*.sqlite
+volumes:
+  - /var/lib/databases:/data:ro
+```
+
+### Method 3: Multiple Directories
+
+```yaml
+environment:
+  - DB_DIRS=/data/app1:/data/app2:/data/app3
+volumes:
+  - /var/lib/app1:/data/app1:ro
+  - /var/lib/app2:/data/app2:ro
+  - /var/lib/app3:/data/app3:ro
+```
+
+### Method 4: Combined
+
+```yaml
+environment:
+  - DB_PATH=/critical/main.sqlite
+  - DB_PATHS=/other/users.db:/other/logs.db
+  - DB_DIRS=/data/apps
+  - DB_PATTERN=*.sqlite
+```
+
+### Backup File Naming
+
+Each database gets a unique backup filename:
+```
+users.sqlite  → users_backup_20241228_143022.sqlite
+orders.sqlite → orders_backup_20241228_143022.sqlite
+app.db        → app_backup_20241228_143022.sqlite
+```
+
+All backups go to the same Google Drive folder (`DRIVE_FOLDER_NAME`).
 
 ---
 
@@ -329,30 +399,49 @@ sqlite3 /path/to/db.sqlite "PRAGMA journal_mode=WAL;"
 
 ## 📊 Multiple Applications
 
-Deploy separate backup containers for multiple databases:
+### Option 1: Single Container (Recommended)
+
+Back up multiple apps with one container:
 
 ```yaml
 # docker-compose.yml
 version: '3.8'
 
 services:
+  backup:
+    image: sqlite-gdrive-backup
+    environment:
+      - DB_DIRS=/data
+      - DB_PATTERN=*.sqlite
+      - DRIVE_FOLDER_NAME=all_backups
+    volumes:
+      - /var/lib/webapp:/data/webapp:ro
+      - /var/lib/api:/data/api:ro
+      - /var/lib/worker:/data/worker:ro
+      - ./rclone.conf:/etc/rclone/rclone.conf:ro
+```
+
+### Option 2: Separate Containers (If Different Schedules Needed)
+
+```yaml
+services:
   webapp_backup:
     image: sqlite-gdrive-backup
     environment:
       - DB_PATH=/data/db.sqlite
+      - BACKUP_SCHEDULE=0 */6 * * *  # Every 6 hours
       - DRIVE_FOLDER_NAME=webapp_backups
     volumes:
       - /var/lib/webapp/db.sqlite:/data/db.sqlite:ro
-      - ./rclone.conf:/etc/rclone/rclone.conf:ro
 
   api_backup:
     image: sqlite-gdrive-backup
     environment:
       - DB_PATH=/data/db.sqlite
+      - BACKUP_SCHEDULE=0 3 * * *    # Daily at 3 AM
       - DRIVE_FOLDER_NAME=api_backups
     volumes:
       - /var/lib/api/db.sqlite:/data/db.sqlite:ro
-      - ./rclone.conf:/etc/rclone/rclone.conf:ro
 ```
 
 ---
