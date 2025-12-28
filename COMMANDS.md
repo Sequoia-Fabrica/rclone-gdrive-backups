@@ -167,20 +167,26 @@ rclone version
 sudo rclone about gdrive: --config /etc/rclone/rclone.conf
 ```
 
-## 🔐 Credentials
+## 🔐 OAuth Configuration
 
 ```bash
-# Check if credentials exist
-ls -l files/credentials.json
+# Configure rclone with OAuth on your Mac
+rclone config
 
-# View service account email
-cat files/credentials.json | grep client_email
+# View your rclone config
+cat ~/.config/rclone/rclone.conf
 
-# Replace with real credentials
-cp ~/Downloads/your-credentials.json files/credentials.json
+# Copy OAuth config to VM
+cat ~/.config/rclone/rclone.conf | multipass exec sandbox -- sudo tee /etc/rclone/rclone.conf
 
-# Verify format (should show JSON)
-python3 -m json.tool files/credentials.json
+# Set proper permissions on VM
+multipass exec sandbox -- sudo chmod 600 /etc/rclone/rclone.conf
+
+# Test OAuth connection from VM
+multipass exec sandbox -- sudo rclone lsd sequoia_fabrica_google_workspace:
+
+# Reconnect OAuth if token expires
+rclone config reconnect sequoia_fabrica_google_workspace:
 ```
 
 ## 📝 Log Management

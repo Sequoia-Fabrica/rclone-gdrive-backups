@@ -7,7 +7,7 @@
     # The location of the database you want to backup
     db_path: "/var/lib/myapp/db.sqlite"
 
-    # Where to store the rclone config and credentials on the server
+    # Where to store the rclone config on the server
     rclone_config_dir: "/etc/rclone"
 
     # Where to temporarily store the backup before upload
@@ -38,19 +38,12 @@
         state: directory
         mode: "0700"
 
-    - name: Upload Google Service Account Credentials
-      copy:
-        src: files/credentials.json
-        dest: "{{ rclone_config_dir }}/service_account.json"
-        mode: "0600"
-
     # NOTE: Rclone config is managed manually via OAuth
-    # Copy your OAuth config from Mac: cat ~/.config/rclone/rclone.conf | multipass exec sandbox -- sudo tee /etc/rclone/rclone.conf
-    # - name: Deploy Rclone Config
-    #   template:
-    #     src: templates/rclone.conf.j2
-    #     dest: "{{ rclone_config_dir }}/rclone.conf"
-    #     mode: "0600"
+    # To set up OAuth on the VM:
+    #   1. On your Mac: rclone config (create remote with OAuth)
+    #   2. Copy config to VM: cat ~/.config/rclone/rclone.conf | multipass exec sandbox -- sudo tee /etc/rclone/rclone.conf
+    #   3. Verify: multipass exec sandbox -- sudo rclone lsd {{ rclone_remote_name }}:
+    # The OAuth tokens will auto-refresh as needed.
 
     - name: Deploy Backup Script
       template:
@@ -66,7 +59,7 @@
 
     - name: Alert if Rclone connection failed
       debug:
-        msg: "WARNING: Rclone could not list files. Check your Service Account permissions."
+        msg: "WARNING: Rclone could not list files. Check your OAuth configuration and ensure rclone.conf is properly copied to the VM."
       when: rclone_check.rc != 0
 
     - name: Schedule Daily Backup Cron Job

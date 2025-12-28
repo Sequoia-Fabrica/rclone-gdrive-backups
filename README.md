@@ -107,7 +107,7 @@ gdrive_backup_test/
 │   ├── backup_sqlite.sh              # Backup script for Docker
 │   ├── entrypoint.sh                 # Container entrypoint
 ├── files/
-│   └── credentials.json              # Google service account credentials
+│   └── credentials.json.example      # Example credentials file (not used with OAuth)
 ├── templates/
 │   ├── backup_script.sh.j2           # Backup script template (VM)
 │   └── rclone.conf.j2                # Rclone configuration template
@@ -142,21 +142,29 @@ tail -f /var/log/db_backup.log                   # View logs
 
 ## 🔐 Google Drive Setup
 
-Since you don't have Google Drive API keys yet, the system is currently using **dummy credentials**. 
+This system uses **OAuth authentication** to connect to Google Drive.
 
-When you're ready:
+**Setup steps:**
 
-1. **Create a Google Cloud project** and enable the Drive API
-2. **Create a service account** and download the JSON key
-3. **Replace the dummy credentials:**
+1. **Configure rclone with OAuth** on your local machine:
    ```bash
-   cp ~/Downloads/your-key.json files/credentials.json
+   rclone config
+   # Choose: New remote → Google Drive → OAuth flow
    ```
-4. **Share your Drive folder** with the service account email (found in the JSON)
-5. **Re-run the playbook:**
+2. **Copy the OAuth config** to your VM or server:
    ```bash
-   ansible-playbook -i inventory.ini playbook.yml
+   # For Multipass VM
+   cat ~/.config/rclone/rclone.conf | multipass exec sandbox -- sudo tee /etc/rclone/rclone.conf
+   
+   # For Docker deployment
+   cp ~/.config/rclone/rclone.conf /etc/gdrive-backup/rclone.conf
    ```
+3. **Verify connection:**
+   ```bash
+   rclone lsd your_remote_name:
+   ```
+
+👉 **See [OAUTH_SETUP_COMPLETE.md](OAUTH_SETUP_COMPLETE.md) for detailed OAuth setup instructions.**
 
 ## 🔍 Troubleshooting
 

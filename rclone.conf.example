@@ -1,13 +1,23 @@
-# Example Rclone Configuration for Google Drive
-# Copy this file to rclone.conf and fill in your actual OAuth credentials
+# Example Rclone Configuration for Google Drive (OAuth)
 #
-# To create a real rclone.conf:
+# This project uses OAuth authentication, NOT service accounts.
+#
+# To create your rclone.conf with OAuth:
 #   1. Run: rclone config
 #   2. Choose: n (New remote)
 #   3. Name: gdrive (or your preferred name)
 #   4. Type: drive (Google Drive)
-#   5. Follow the OAuth flow
-#   6. Copy the generated config from ~/.config/rclone/rclone.conf
+#   5. Client ID/Secret: Press Enter (use defaults, or provide your own)
+#   6. Scope: drive (full access recommended for backups)
+#   7. Root folder: Press Enter
+#   8. Service account file: Press Enter (leave blank - we're using OAuth!)
+#   9. Edit advanced config: n
+#   10. Use auto config: y (opens browser for OAuth login)
+#   11. Log in with your Google account and authorize
+#
+# After configuration, copy the generated config:
+#   - From: ~/.config/rclone/rclone.conf
+#   - To your deployment location (VM, Docker host, etc.)
 #
 # IMPORTANT: Never commit the real rclone.conf to version control!
 # It contains OAuth tokens that provide access to your Google Drive.
@@ -15,11 +25,13 @@
 [gdrive]
 type = drive
 scope = drive
-token = {"access_token":"YOUR_ACCESS_TOKEN_HERE","token_type":"Bearer","refresh_token":"YOUR_REFRESH_TOKEN_HERE","expiry":"2024-01-01T00:00:00.000000000Z"}
-team_drive =
+# OAuth token (automatically populated by rclone config)
+token = {"access_token":"YOUR_ACCESS_TOKEN","token_type":"Bearer","refresh_token":"YOUR_REFRESH_TOKEN","expiry":"2024-12-31T23:59:59.000000000Z"}
 
-# Optional: For Google Workspace Shared Drives
-# Uncomment and add your Shared Drive ID if using a Team Drive
+# Optional: For Google Workspace Shared Drives (Team Drives)
+# If you're using a Shared Drive instead of My Drive:
+# 1. Get the Shared Drive ID from the URL when viewing it in Google Drive
+# 2. Uncomment the line below and add your Shared Drive ID
 # team_drive = 0AaBbCcDdEeFfGg
 
 # Optional: Additional remotes for different environments
@@ -35,13 +47,15 @@ token = {"access_token":"STAGING_ACCESS_TOKEN","token_type":"Bearer","refresh_to
 
 # Notes:
 # - The 'scope' setting controls what permissions rclone has:
-#   - 'drive.file' = Only access files created by rclone
+#   - 'drive.file' = Only access files created by rclone (limited)
 #   - 'drive' = Full access to Google Drive (recommended for backups)
 #   - 'drive.readonly' = Read-only access
 #
-# - OAuth tokens refresh automatically, but if you see "invalid_grant" errors:
+# - OAuth tokens refresh automatically using the refresh_token
+# - Access tokens expire after ~1 hour, but refresh tokens last months/years
+# - If you see "invalid_grant" errors, reconnect OAuth:
 #   Run: rclone config reconnect gdrive:
 #
-# - For service accounts (Google Workspace), add:
-#   service_account_file = /etc/rclone/service_account.json
-#   (This method requires additional Google Workspace setup)
+# - This project does NOT use service accounts
+# - OAuth works with both personal Google accounts and Google Workspace
+# - No special Google Cloud project setup required (uses rclone's built-in OAuth app)

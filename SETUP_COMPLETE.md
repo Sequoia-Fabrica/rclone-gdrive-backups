@@ -52,42 +52,59 @@ Your M3 Mac (macOS)
 
 ---
 
-## 🔐 Next Step: Get Real Google Drive Credentials
+## 🔐 Next Step: Configure Google Drive with OAuth
 
-Your system is fully configured but using **dummy credentials**. To enable Google Drive uploads:
+Your system is fully configured but needs OAuth setup to connect to Google Drive.
 
-### Step 1: Create Google Cloud Service Account
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com)
-2. Create a new project (or use existing)
-3. Enable **Google Drive API**
-4. Create a **Service Account**
-5. Download the **JSON key file**
-
-### Step 2: Replace Dummy Credentials
+### Step 1: Configure Rclone with OAuth on Your Mac
 
 ```bash
-# Navigate to project directory
-cd ~/Documents/gdrive_backup_test
+# Run rclone config interactively
+rclone config
 
-# Replace with your real credentials
-cp ~/Downloads/your-service-account-key.json files/credentials.json
+# Follow the prompts:
+# - Choose: n (New remote)
+# - Name: sequoia_fabrica_google_workspace (or your preferred name)
+# - Storage: drive (Google Drive)
+# - Client ID/Secret: Press Enter (use defaults)
+# - Scope: drive (full access)
+# - Root folder: Press Enter
+# - Service account file: Press Enter (leave blank - using OAuth!)
+# - Edit advanced config: n
+# - Use auto config: y (opens browser for OAuth login)
+# - Log in with your Google account and authorize
 ```
 
-### Step 3: Share Google Drive Folder
-
-1. Open the `files/credentials.json` file
-2. Find the `client_email` field (e.g., `my-service@project.iam.gserviceaccount.com`)
-3. In Google Drive, create a folder named `sqlite_backups`
-4. Right-click the folder → Share
-5. Paste the service account email
-6. Give it **Editor** permissions
-
-### Step 4: Redeploy Configuration
+### Step 2: Copy OAuth Config to VM
 
 ```bash
-# Update the VM with new credentials
-ansible-playbook -i inventory.ini playbook.yml
+# Copy your rclone config with OAuth tokens to the VM
+cat ~/.config/rclone/rclone.conf | multipass exec sandbox -- sudo tee /etc/rclone/rclone.conf
+
+# Set proper permissions
+multipass exec sandbox -- sudo chmod 600 /etc/rclone/rclone.conf
+```
+
+### Step 3: Verify Connection
+
+```bash
+# Test that rclone can connect to Google Drive
+multipass exec sandbox -- sudo rclone lsd sequoia_fabrica_google_workspace:
+
+# Create the backup folder
+multipass exec sandbox -- sudo rclone mkdir sequoia_fabrica_google_workspace:sqlite_backups
+```
+
+### Step 4: Test Backup
+
+```bash
+# Run a manual backup to test
+multipass exec sandbox -- sudo /usr/local/bin/backup_sqlite.sh
+
+# Check the logs
+multipass exec sandbox -- sudo tail /var/log/db_backup.log
+
+# Check your Google Drive - you should see the backup!
 ```
 
 ### Step 5: Test with Real Credentials
@@ -147,7 +164,6 @@ multipass exec sandbox -- sudo crontab -l
 ### On Your Mac
 ```
 ~/Documents/gdrive_backup_test/
-├── files/credentials.json          # Replace with real credentials
 ├── inventory.ini                   # VM connection info
 ├── playbook.yml                    # Ansible configuration
 └── helper.sh                       # Your daily helper script
@@ -340,7 +356,7 @@ Your Google Drive SQLite backup system is **fully configured and tested**!
 
 The only remaining step is to add real Google Drive credentials, and then your system will automatically backup your database every day.
 
-**Next action:** Get your Google Cloud service account credentials and replace `files/credentials.json`
+**Next action:** Configure rclone with OAuth (see instructions above) and test your first backup!
 
 ---
 

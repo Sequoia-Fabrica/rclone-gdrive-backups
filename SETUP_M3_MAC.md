@@ -86,28 +86,7 @@ You should see:
 }
 ```
 
-## Step 6: Create Dummy credentials.json (Since you don't have API keys yet)
-
-```bash
-cat > files/credentials.json << 'EOF'
-{
-  "type": "service_account",
-  "project_id": "dummy-project",
-  "private_key_id": "dummy123",
-  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7W8/dummy/key\n-----END PRIVATE KEY-----\n",
-  "client_email": "dummy-service-account@dummy-project.iam.gserviceaccount.com",
-  "client_id": "123456789",
-  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-  "token_uri": "https://oauth2.googleapis.com/token",
-  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/dummy%40dummy.iam.gserviceaccount.com"
-}
-EOF
-```
-
-**Note:** This is a dummy file. The playbook will run but won't be able to connect to Google Drive. When you get real credentials, replace this file.
-
-## Step 7: Create a Test SQLite Database in the VM
+## Step 6: Create a Test SQLite Database in the VM
 
 ```bash
 multipass exec sandbox -- bash -c "sudo mkdir -p /var/lib/myapp && sudo sqlite3 /var/lib/myapp/db.sqlite 'CREATE TABLE test(id INTEGER PRIMARY KEY, name TEXT);' && sudo sqlite3 /var/lib/myapp/db.sqlite \"INSERT INTO test (name) VALUES ('test_data');\""
@@ -211,11 +190,62 @@ multipass list
 - Check the log: `multipass exec sandbox -- tail -f /var/log/db_backup.log`
 - Run the script manually to see errors: `multipass shell sandbox` then `sudo /usr/local/bin/backup_sqlite.sh`
 
-## Next Steps
+## Next Steps: Configure OAuth for Google Drive
+
+The playbook is now deployed, but you need to configure OAuth to connect to Google Drive.
+
+### 1. Configure Rclone with OAuth on Your Mac
+
+```bash
+# Run rclone config interactively
+rclone config
+
+# Follow the prompts:
+# - Choose: n (New remote)
+# - Name: sequoia_fabrica_google_workspace (or your preferred name)
+# - Storage: drive (Google Drive)
+# - Client ID/Secret: Press Enter (use defaults)
+# - Scope: drive (full access)
+# - Root folder: Press Enter
+# - Service account file: Press Enter (we're using OAuth, not service accounts!)
+# - Edit advanced config: n
+# - Use auto config: y (this will open a browser for OAuth)
+# - Log in with your Google account and authorize
+```
+
+### 2. Copy OAuth Config to the VM
+
+```bash
+# Copy your rclone config with OAuth tokens to the VM
+cat ~/.config/rclone/rclone.conf | multipass exec sandbox -- sudo tee /etc/rclone/rclone.conf
+
+# Set proper permissions
+multipass exec sandbox -- sudo chmod 600 /etc/rclone/rclone.conf
+```
+
+### 3. Verify Connection and Test Backup
+
+```bash
+# Test that rclone can connect to Google Drive
+multipass exec sandbox -- sudo rclone lsd sequoia_fabrica_google_workspace:
+
+# Create the backup folder
+multipass exec sandbox -- sudo rclone mkdir sequoia_fabrica_google_workspace:sqlite_backups
+
+# Run a manual backup to test
+multipass exec sandbox -- sudo /usr/local/bin/backup_sqlite.sh
+
+# Check your Google Drive - you should see the backup!
+```
+
+### 4. Deploy to Production
 
 Once everything is working with Multipass locally, you can:
 1. Deploy the same playbook to a real server (cloud or on-premises)
 2. Update the `inventory.ini` to point to your production server
-3. Run the same playbook against production
+3. Copy your rclone OAuth config to the production server
+4. Run the same playbook against production
 
 The beauty of this approach is that your development environment (Multipass VM) matches your production environment (Ubuntu server), so what works locally will work in production!
+
+For more details on OAuth setup, see [OAUTH_SETUP_COMPLETE.md](OAUTH_SETUP_COMPLETE.md).

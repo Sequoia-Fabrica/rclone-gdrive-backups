@@ -3,7 +3,7 @@
 *.box
 
 # Credentials and sensitive files
-files/credentials.json
+# Note: This project uses OAuth (rclone.conf), not service accounts
 *.pem
 *.key
 id_rsa*
@@ -34,4 +34,3 @@ inventory.ini
 __pycache__/
 *.pyc
 *.pyo
-

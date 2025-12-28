@@ -62,34 +62,42 @@ The system is **fully configured** except for Google Drive credentials.
 
 ---
 
-## 🔐 Next: Get Google Drive Working
+## 🔐 Next: Configure Google Drive with OAuth
 
-Since you don't have Google Drive API keys yet, the system is using dummy credentials. When you're ready:
+The system is deployed but needs OAuth configuration to connect to Google Drive.
 
-### 1. Get Credentials from Google Cloud
-- Create a project
-- Enable Google Drive API
-- Create a service account
-- Download JSON key file
-
-### 2. Replace Dummy Credentials
+### 1. Configure Rclone with OAuth on Your Mac
 ```bash
-cp ~/Downloads/your-real-key.json files/credentials.json
+rclone config
+
+# Follow the prompts:
+# - Choose: n (New remote)
+# - Name: sequoia_fabrica_google_workspace (or your preferred name)
+# - Storage: drive (Google Drive)
+# - Client ID/Secret: Press Enter (use defaults)
+# - Scope: drive (full access)
+# - Root folder: Press Enter
+# - Service account file: Press Enter (leave blank - using OAuth!)
+# - Edit advanced config: n
+# - Use auto config: y (opens browser for OAuth login)
+# - Log in with your Google account and authorize
 ```
 
-### 3. Share Drive Folder
-- Open `files/credentials.json`
-- Copy the `client_email` value
-- Go to Google Drive → Create folder `sqlite_backups`
-- Share folder with that email address (Editor access)
-
-### 4. Redeploy
+### 2. Copy OAuth Config to VM
 ```bash
-ansible-playbook -i inventory.ini playbook.yml
+cat ~/.config/rclone/rclone.conf | multipass exec sandbox -- sudo tee /etc/rclone/rclone.conf
+multipass exec sandbox -- sudo chmod 600 /etc/rclone/rclone.conf
 ```
 
-### 5. Test with Real Credentials
+### 3. Verify and Test
 ```bash
+# Test connection
+multipass exec sandbox -- sudo rclone lsd sequoia_fabrica_google_workspace:
+
+# Create backup folder
+multipass exec sandbox -- sudo rclone mkdir sequoia_fabrica_google_workspace:sqlite_backups
+
+# Run test backup
 ./helper.sh test
 ```
 
