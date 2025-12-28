@@ -1,0 +1,115 @@
+╔═══════════════════════════════════════════════════════════════╗
+║                                                               ║
+║   GOOGLE DRIVE SQLITE BACKUP SYSTEM - M3 MAC EDITION         ║
+║                                                               ║
+╚═══════════════════════════════════════════════════════════════╝
+
+📁 PROJECT STRUCTURE
+─────────────────────────────────────────────────────────────────
+gdrive_backup_test/
+├── 📄 START_HERE.md              ⭐ Begin here!
+├── 📄 QUICKSTART.md               5-minute setup guide
+├── 📄 README.md                   Project overview
+├── 📄 COMMANDS.md                 Command cheat sheet
+├── 📄 SETUP_M3_MAC.md             Detailed M3 guide
+├── 📄 WORKFLOW.md                 Architecture diagrams
+│
+├── 🔧 setup_m3.sh                 ⭐ Run this first!
+├── 🔧 helper.sh                   ⭐ Daily operations
+├── 🔧 diagnose.sh                 System health check
+│
+├── ⚙️  playbook.yml                Ansible configuration
+├── ⚙️  inventory.ini               VM connection info
+│
+├── 📂 files/
+│   └── credentials.json          Google service account
+│
+└── 📂 templates/
+    ├── backup_script.sh.j2       Backup logic
+    └── rclone.conf.j2            Drive config
+
+─────────────────────────────────────────────────────────────────
+🚀 GETTING STARTED (5 MINUTES)
+─────────────────────────────────────────────────────────────────
+
+1. Install prerequisites:
+   $ brew install multipass ansible
+
+2. Run setup:
+   $ ./setup_m3.sh
+
+3. Deploy system:
+   $ ansible-playbook -i inventory.ini playbook.yml
+
+4. Test it:
+   $ ./helper.sh test
+
+─────────────────────────────────────────────────────────────────
+🎮 ESSENTIAL COMMANDS
+─────────────────────────────────────────────────────────────────
+
+./helper.sh                # Interactive menu (BEST!)
+./helper.sh setup          # Initial setup
+./helper.sh deploy         # Run Ansible playbook
+./helper.sh test           # Test backup manually
+./helper.sh logs           # View backup logs
+./helper.sh shell          # SSH into VM
+./helper.sh check          # Run diagnostics
+
+multipass list             # List all VMs
+multipass shell sandbox    # SSH into VM
+multipass info sandbox     # View VM details
+
+─────────────────────────────────────────────────────────────────
+🔐 GOOGLE DRIVE SETUP (When Ready)
+─────────────────────────────────────────────────────────────────
+
+1. Get service account key from Google Cloud
+2. Replace: cp ~/Downloads/key.json files/credentials.json
+3. Share Drive folder with service account email
+4. Redeploy: ansible-playbook -i inventory.ini playbook.yml
+5. Test: ./helper.sh test
+
+─────────────────────────────────────────────────────────────────
+🆘 TROUBLESHOOTING
+─────────────────────────────────────────────────────────────────
+
+Problem?              Solution:
+─────────────────────────────────────────────────────────────────
+Anything              ./diagnose.sh
+Can't connect         ./helper.sh update-ip
+Start fresh           multipass delete sandbox && 
+                      multipass purge && ./setup_m3.sh
+View logs             ./helper.sh logs
+Test backup           ./helper.sh test
+
+─────────────────────────────────────────────────────────────────
+✅ CURRENT STATUS
+─────────────────────────────────────────────────────────────────
+
+✓ M3 Mac compatibility fixed (using Multipass)
+✓ Automated setup script created
+✓ Helper script for daily operations
+✓ Diagnostic tool included
+✓ Comprehensive documentation
+✓ Dummy credentials (replace with real ones)
+✓ Ready to test locally
+
+⚠️  Next: Get real Google Drive credentials
+⚠️  Status: Backups work locally, uploads need real credentials
+
+─────────────────────────────────────────────────────────────────
+📚 DOCUMENTATION GUIDE
+─────────────────────────────────────────────────────────────────
+
+New user?              Read START_HERE.md
+Quick setup?           Read QUICKSTART.md
+Need commands?         Read COMMANDS.md
+Troubleshooting?       Read SETUP_M3_MAC.md
+Understanding system?  Read WORKFLOW.md
+Overview?              Read README.md
+
+─────────────────────────────────────────────────────────────────
+
+🎉 You're all set! Run ./setup_m3.sh to begin!
+

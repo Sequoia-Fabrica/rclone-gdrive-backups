@@ -1,0 +1,37 @@
+# Vagrant
+.vagrant/
+*.box
+
+# Credentials and sensitive files
+files/credentials.json
+*.pem
+*.key
+id_rsa*
+
+# Ansible
+*.retry
+.ansible/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Rclone config (contains OAuth tokens)
+rclone.conf
+
+# VM specific
+inventory.ini
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*~
+.*.swp
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
