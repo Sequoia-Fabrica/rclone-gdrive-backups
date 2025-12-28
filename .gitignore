@@ -1,9 +1,7 @@
-# Vagrant
-.vagrant/
-*.box
+# Rclone config (contains OAuth tokens)
+rclone.conf
 
-# Credentials and sensitive files
-# Note: This project uses OAuth (rclone.conf), not service accounts
+# Private keys and certificates
 *.pem
 *.key
 id_rsa*
@@ -15,12 +13,7 @@ id_rsa*
 # OS files
 .DS_Store
 Thumbs.db
-
-# Rclone config (contains OAuth tokens)
-rclone.conf
-
-# VM specific
-inventory.ini
+._*
 
 # Logs
 *.log
@@ -34,3 +27,11 @@ inventory.ini
 __pycache__/
 *.pyc
 *.pyo
+
+# Docker
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp

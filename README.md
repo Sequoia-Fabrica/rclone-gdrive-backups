@@ -1,312 +1,495 @@
-# Google Drive SQLite Backup System
+# SQLite Google Drive Backup - Docker Edition
 
-Automated SQLite database backup system that safely backs up databases to Google Drive using rclone and Ansible.
-
-## 📦 Deployment Options
-
-This project supports multiple deployment methods:
-
-- **Docker Container** (Recommended for production) - [See DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md)
-- **Direct VM Deployment** (Development/testing)
-- **Integration with Parent Ansible Playbooks** - [See example_parent_playbook.yml](example_parent_playbook.yml)
-
-### Quick Deploy as Docker Container
-
-```bash
-# Clone the repository
-git clone https://github.com/yourorg/gdrive-backup.git
-cd gdrive-backup
-
-# Run the Ansible playbook to deploy as Docker container
-ansible-playbook deploy_docker.yml -i production_inventory.ini
-
-# Or use docker-compose
-docker-compose up -d
-```
-
-👉 **See [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md) for complete Docker deployment guide**
-
-## 🚨 Important: M3 Mac Users
-
-**VirtualBox does not work on Apple Silicon (M1/M2/M3) Macs!**
-
-If you're on an M3 Mac and got the error:
-```
-VBoxManage: error: Cannot run the machine because its platform architecture x86 is not supported on ARM
-```
-
-✅ **Don't worry!** This project includes a complete alternative setup using **Multipass** instead of Vagrant/VirtualBox.
+Automated SQLite database backup system that safely backs up databases to Google Drive using Docker, rclone, and OAuth authentication.
 
 ## 🚀 Quick Start
 
-### For M3 Mac Users (Apple Silicon)
+### Prerequisites
 
-1. **Install prerequisites:**
-   ```bash
-   brew install multipass ansible
-   ```
+- Docker installed on your server
+- SQLite database to backup
+- Google account for Drive storage
 
-2. **Run the automated setup:**
-   ```bash
-   ./setup_m3.sh
-   ```
+### 1. Clone Repository
 
-3. **Deploy the backup system:**
-   ```bash
-   ansible-playbook -i inventory.ini playbook.yml
-   ```
+```bash
+git clone https://github.com/yourorg/sqlite-gdrive-backup.git
+cd sqlite-gdrive-backup
+```
 
-4. **Test it:**
-   ```bash
-   multipass shell sandbox
-   sudo /usr/local/bin/backup_sqlite.sh
-   ```
+### 2. Configure OAuth
 
-👉 **See [QUICKSTART.md](QUICKSTART.md) for detailed steps**
+```bash
+# Configure rclone with Google Drive OAuth
+rclone config
 
-### For x86 Machines (Intel/AMD)
+# Follow prompts:
+# - New remote → Google Drive
+# - Use OAuth (opens browser)
+# - Authorize with your Google account
 
-Follow the original Vagrant setup in [initial_project_outline.md](GEMINI_DOCS/initial_project_outline.md)
+# Copy config for deployment
+cp ~/.config/rclone/rclone.conf ./rclone.conf
+chmod 600 ./rclone.conf
+```
 
-## 📚 Documentation
+### 3. Deploy with Docker Compose
 
-| Document | Purpose |
-|----------|---------|
-| **[QUICKSTART.md](QUICKSTART.md)** | Fast 5-minute setup guide for M3 Macs |
-| **[SETUP_M3_MAC.md](SETUP_M3_MAC.md)** | Detailed M3 setup with troubleshooting |
-| **[initial_project_outline.md](GEMINI_DOCS/initial_project_outline.md)** | Original project design (Vagrant/VirtualBox) |
+```bash
+# Edit docker-compose.yml to set your database path
+# Update: /var/lib/myapp/db.sqlite to your actual database location
 
-## 🔧 What This Does
+docker-compose up -d
+```
 
-This system provides **automated, safe SQLite database backups** with these features:
+### 4. Verify
+
+```bash
+# Check logs
+docker-compose logs -f gdrive_backup
+
+# Run manual backup
+docker-compose exec gdrive_backup /scripts/backup_sqlite.sh
+
+# Verify in Google Drive
+rclone ls gdrive:sqlite_backups --config ./rclone.conf
+```
+
+**Done!** Backups run automatically on schedule (default: 2:30 AM daily).
+
+---
+
+## 📦 Features
 
 - ✅ **Safe hot backups** using SQLite's `VACUUM INTO` (no long locks)
-- ✅ **Automatic uploads** to Google Drive using rclone
-- ✅ **Scheduled daily backups** via cron
+- ✅ **Automatic uploads** to Google Drive using rclone OAuth
+- ✅ **Scheduled backups** via cron inside container
 - ✅ **Automatic retention** (deletes backups older than 30 days)
-- ✅ **Transaction-safe** backup process
-- ✅ **Infrastructure as Code** using Ansible
+- ✅ **Docker containerized** - runs anywhere Docker runs
+- ✅ **Production ready** - health checks, logging, restart policies
+- ✅ **Easy integration** - works with existing Ansible playbooks
+
+---
 
 ## 📁 Project Structure
 
 ```
-gdrive_backup_test/
+sqlite-gdrive-backup/
 ├── README.md                         # This file
-├── QUICKSTART.md                     # Fast setup guide for M3 Mac
-├── SETUP_M3_MAC.md                   # Detailed M3 Mac guide
-├── DOCKER_DEPLOYMENT.md              # Docker deployment guide ⭐
-├── docker-compose.yml                # Docker Compose example ⭐
-├── Dockerfile                        # Docker image definition ⭐
-├── setup_m3.sh                       # Automated M3 Mac setup script
-├── diagnose.sh                       # Diagnostic tool
-├── inventory.ini                     # Ansible inventory (auto-generated)
-├── playbook.yml                      # Ansible playbook (VM deployment)
-├── deploy_docker.yml                 # Ansible playbook (Docker deployment) ⭐
-├── example_parent_playbook.yml       # Integration example ⭐
-├── scripts/                          # Docker container scripts ⭐
-│   ├── backup_sqlite.sh              # Backup script for Docker
-│   ├── entrypoint.sh                 # Container entrypoint
-├── files/
-│   └── credentials.json.example      # Example credentials file (not used with OAuth)
-├── templates/
-│   ├── backup_script.sh.j2           # Backup script template (VM)
-│   └── rclone.conf.j2                # Rclone configuration template
-└── GEMINI_DOCS/
-    └── initial_project_outline.md
+├── Dockerfile                        # Container image definition
+├── docker-compose.yml                # Docker Compose deployment
+├── deploy_docker.yml                 # Ansible deployment playbook
+├── example_parent_playbook.yml       # Integration example
+├── scripts/                          # Container scripts
+│   ├── backup_sqlite.sh              # Backup script
+│   └── entrypoint.sh                 # Container entrypoint
+├── files/                            # Configuration directory
+│   └── README.md                     # OAuth setup guide
+├── rclone.conf.example               # Example rclone config
+└── docs/
+    ├── DOCKER_DEPLOYMENT.md          # Complete deployment guide
+    ├── DOCKER_QUICK_START.md         # 5-minute quick start
+    ├── INTEGRATION_GUIDE.md          # Parent playbook integration
+    ├── DEPLOYMENT_SUMMARY.md         # Technical summary
+    ├── OAUTH_SETUP_COMPLETE.md       # OAuth guide
+    └── GOOGLE_DRIVE_SETUP.md         # Google Drive setup
 ```
 
-## 🛠️ Helpful Commands
+---
 
-### VM Management
-```bash
-./setup_m3.sh                 # Initial setup (creates VM)
-./diagnose.sh                 # Check system health
-multipass shell sandbox       # SSH into VM
-multipass list                # View all VMs
-multipass stop sandbox        # Stop the VM
-multipass start sandbox       # Start the VM
-```
+## 🐳 Deployment Options
 
-### Deployment
-```bash
-ansible-playbook -i inventory.ini playbook.yml    # Deploy/update
-ansible -i inventory.ini sandbox -m ping          # Test connection
-```
+### Option 1: Docker Compose (Recommended)
 
-### Testing
-```bash
-multipass shell sandbox
-sudo /usr/local/bin/backup_sqlite.sh             # Manual backup
-tail -f /var/log/db_backup.log                   # View logs
-```
-
-## 🔐 Google Drive Setup
-
-This system uses **OAuth authentication** to connect to Google Drive.
-
-**Setup steps:**
-
-1. **Configure rclone with OAuth** on your local machine:
-   ```bash
-   rclone config
-   # Choose: New remote → Google Drive → OAuth flow
-   ```
-2. **Copy the OAuth config** to your VM or server:
-   ```bash
-   # For Multipass VM
-   cat ~/.config/rclone/rclone.conf | multipass exec sandbox -- sudo tee /etc/rclone/rclone.conf
-   
-   # For Docker deployment
-   cp ~/.config/rclone/rclone.conf /etc/gdrive-backup/rclone.conf
-   ```
-3. **Verify connection:**
-   ```bash
-   rclone lsd your_remote_name:
-   ```
-
-👉 **See [OAUTH_SETUP_COMPLETE.md](OAUTH_SETUP_COMPLETE.md) for detailed OAuth setup instructions.**
-
-## 🔍 Troubleshooting
-
-### Quick diagnostics:
-```bash
-./diagnose.sh
-```
-
-This script checks:
-- ✓ Prerequisites installed
-- ✓ VM status and connectivity
-- ✓ Required files present
-- ✓ Ansible can connect
-- ✓ Services deployed correctly
-
-### Common Issues
-
-**"VM won't start"**
-```bash
-multipass restart sandbox
-```
-
-**"Ansible can't connect"**
-```bash
-./setup_m3.sh    # Regenerates SSH config and inventory
-```
-
-**"IP address changed"**
-```bash
-./setup_m3.sh    # Updates inventory.ini with new IP
-```
-
-**"Start completely fresh"**
-```bash
-multipass delete sandbox
-multipass purge
-./setup_m3.sh
-ansible-playbook -i inventory.ini playbook.yml
-```
-
-## 🎯 How It Works
-
-1. **Ansible** configures an Ubuntu VM with all required packages
-2. **Backup script** runs daily via cron (2:30 AM by default)
-3. **Script performs:**
-   - Creates transaction-safe SQLite backup using `VACUUM INTO`
-   - Uploads to Google Drive using rclone
-   - Deletes local copy
-   - Cleans up old cloud backups (30+ days)
-4. **Logs** are written to `/var/log/db_backup.log`
-
-## 🚀 Next Steps
-
-### For Development/Testing (M3 Mac)
-1. ✅ Run `./setup_m3.sh` to create the VM
-2. ✅ Run the playbook to configure everything
-3. ✅ Test with OAuth credentials
-
-### For Production Deployment
-1. 🔜 Set up Google Drive OAuth (see [OAUTH_SETUP_COMPLETE.md](OAUTH_SETUP_COMPLETE.md))
-2. 🔜 Choose deployment method:
-   - **Docker** (recommended): See [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md)
-   - **Direct VM**: Use `playbook.yml`
-   - **Parent playbook**: See [example_parent_playbook.yml](example_parent_playbook.yml)
-3. 🔜 Test backup and restore procedures
-4. 🔜 Set up monitoring and alerting
-
-## 📊 System Requirements
-
-- **macOS** with Apple Silicon (M1/M2/M3) or Intel
-- **4GB RAM** available for VM
-- **10GB disk space** for VM
-- **Homebrew** package manager
-- **Internet connection** for package downloads
-
-## 🐳 Docker Deployment
-
-This project can be deployed as a Docker container for production use:
-
-### Features
-- ✅ **Containerized** - Isolated, portable deployment
-- ✅ **Ansible Integration** - Deploy with `deploy_docker.yml`
-- ✅ **Docker Compose** - Simple multi-container setups
-- ✅ **Scheduled Backups** - Built-in cron scheduler
-- ✅ **Easy Integration** - Include in parent playbooks
-
-### Quick Docker Deploy
+Best for: Simple deployments, single server
 
 ```bash
-# Build and deploy with Ansible
-ansible-playbook deploy_docker.yml -i production.ini
-
-# Or use Docker Compose
+cp ~/.config/rclone/rclone.conf ./rclone.conf
 docker-compose up -d
+```
 
-# Or manual Docker run
+**See:** [DOCKER_QUICK_START.md](docs/DOCKER_QUICK_START.md)
+
+### Option 2: Ansible Deployment
+
+Best for: Production, multiple servers, infrastructure as code
+
+```bash
+ansible-playbook deploy_docker.yml -i production.ini \
+  -e "db_path=/var/lib/myapp/db.sqlite"
+```
+
+**See:** [DOCKER_DEPLOYMENT.md](docs/DOCKER_DEPLOYMENT.md)
+
+### Option 3: Manual Docker
+
+Best for: Custom deployments, testing
+
+```bash
+docker build -t sqlite-gdrive-backup .
+
 docker run -d \
-  --name sqlite_backup \
+  --name backup \
   -v /path/to/db.sqlite:/data/db.sqlite:ro \
-  -v /path/to/rclone.conf:/etc/rclone/rclone.conf:ro \
+  -v ./rclone.conf:/etc/rclone/rclone.conf:ro \
   -e RCLONE_REMOTE_NAME=gdrive \
   -e DRIVE_FOLDER_NAME=backups \
   sqlite-gdrive-backup:latest
 ```
 
-**Full documentation:** [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md)
-
-## 🔗 Integration with Existing Infrastructure
-
-If you have an existing Ansible infrastructure, you can easily integrate this backup system:
-
-```yaml
-# In your main playbook
-- name: Deploy backups
-  include_tasks: "{{ backup_repo_dest }}/deploy_docker.yml"
-  vars:
-    db_path: "/var/lib/myapp/db.sqlite"
-    rclone_remote_name: "gdrive"
-    drive_folder_name: "production_backups"
-```
-
-See [example_parent_playbook.yml](example_parent_playbook.yml) for a complete example.
-
-## ℹ️ About
-
-This project demonstrates:
-- Infrastructure as Code with Ansible
-- Safe database backup strategies
-- Google Drive integration via OAuth
-- Docker containerization and orchestration
-- Cross-platform virtualization (Multipass vs VirtualBox)
-- ARM/Apple Silicon compatibility solutions
-- Integration patterns for larger infrastructures
-
-## 📝 License
-
-This is a demonstration/learning project. Use and modify as needed.
+**See:** [DOCKER_DEPLOYMENT.md](docs/DOCKER_DEPLOYMENT.md#manual-docker-deployment)
 
 ---
 
-**Having issues?** Check:
-1. [QUICKSTART.md](QUICKSTART.md) for step-by-step instructions (M3 Mac)
-2. [SETUP_M3_MAC.md](SETUP_M3_MAC.md) for detailed troubleshooting (M3 Mac)
-3. [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md) for Docker deployment and troubleshooting
-4. Run `./diagnose.sh` to identify problems automatically (M3 Mac only)
+## ⚙️ Configuration
+
+### Environment Variables
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `DB_PATH` | Path to database in container | `/data/db.sqlite` | Yes |
+| `RCLONE_REMOTE_NAME` | Name from rclone.conf | `gdrive` | Yes |
+| `DRIVE_FOLDER_NAME` | Folder in Google Drive | `sqlite_backups` | Yes |
+| `BACKUP_SCHEDULE` | Cron schedule | `30 2 * * *` | No |
+| `RUN_ON_STARTUP` | Run backup on start | `false` | No |
+
+### Backup Schedule Examples
+
+```bash
+# Daily at 2:30 AM (default)
+BACKUP_SCHEDULE="30 2 * * *"
+
+# Every 6 hours
+BACKUP_SCHEDULE="0 */6 * * *"
+
+# Every Sunday at 3 AM
+BACKUP_SCHEDULE="0 3 * * 0"
+
+# Twice daily (6 AM and 6 PM)
+BACKUP_SCHEDULE="0 6,18 * * *"
+```
+
+---
+
+## 🔐 OAuth Authentication
+
+This project uses **OAuth authentication** (not service accounts).
+
+### Why OAuth?
+
+- ✅ Works with personal Google accounts
+- ✅ Works with Google Workspace accounts
+- ✅ No Google Cloud project setup required
+- ✅ No service account configuration
+- ✅ Tokens auto-refresh indefinitely
+- ✅ Simpler setup process
+
+### Setup OAuth
+
+```bash
+# 1. Configure rclone
+rclone config
+
+# 2. Choose: New remote → Google Drive → OAuth
+# 3. Follow browser prompts to authorize
+# 4. Copy config to deployment location
+cp ~/.config/rclone/rclone.conf ./rclone.conf
+```
+
+**See:** [OAUTH_SETUP_COMPLETE.md](docs/OAUTH_SETUP_COMPLETE.md) for detailed instructions.
+
+---
+
+## 🔗 Integration with Ansible
+
+Easily integrate into existing infrastructure:
+
+```yaml
+---
+- name: Deploy Application with Backups
+  hosts: production
+  become: yes
+  
+  tasks:
+    # Deploy your application
+    - name: Deploy app
+      # ... your tasks ...
+    
+    # Clone backup repository
+    - name: Clone backup system
+      git:
+        repo: https://github.com/yourorg/sqlite-gdrive-backup.git
+        dest: /opt/backup-system
+    
+    # Deploy rclone config
+    - name: Copy rclone config
+      copy:
+        src: files/rclone.conf
+        dest: /etc/gdrive-backup/rclone.conf
+        mode: '0600'
+    
+    # Deploy backup container
+    - import_playbook: /opt/backup-system/deploy_docker.yml
+      vars:
+        db_path: /var/lib/myapp/db.sqlite
+        rclone_remote_name: gdrive
+        drive_folder_name: production_backups
+```
+
+**See:** [INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md) for complete integration patterns.
+
+---
+
+## 🛠️ Common Commands
+
+```bash
+# View logs
+docker logs -f backup
+
+# Run manual backup
+docker exec backup /scripts/backup_sqlite.sh
+
+# Check backup schedule
+docker exec backup crontab -l
+
+# Enter container shell
+docker exec -it backup /bin/bash
+
+# Restart container
+docker restart backup
+
+# View backup log inside container
+docker exec backup tail -f /var/log/backup.log
+
+# List backups in Google Drive
+rclone ls gdrive:sqlite_backups --config ./rclone.conf
+
+# Check container health
+docker ps | grep backup
+docker inspect backup | jq '.[0].State.Health'
+```
+
+---
+
+## 🔍 Troubleshooting
+
+### Container exits immediately
+
+**Check logs:**
+```bash
+docker logs backup
+```
+
+**Common causes:**
+- Missing rclone.conf - verify file exists and is mounted
+- Invalid environment variables - check all required vars
+- Database not found - verify path and volume mount
+
+### Can't connect to Google Drive
+
+**Test connection:**
+```bash
+# Outside container
+rclone lsd gdrive: --config ./rclone.conf
+
+# Inside container
+docker exec backup rclone lsd gdrive: --config /etc/rclone/rclone.conf
+```
+
+**If OAuth token expired:**
+```bash
+rclone config reconnect gdrive:
+cp ~/.config/rclone/rclone.conf ./rclone.conf
+docker restart backup
+```
+
+### Backup not running on schedule
+
+**Check cron:**
+```bash
+docker exec backup pgrep cron
+docker exec backup crontab -l
+```
+
+**Check logs:**
+```bash
+docker exec backup tail -f /var/log/backup.log
+```
+
+### Database locked error
+
+**Enable WAL mode:**
+```bash
+sqlite3 /path/to/db.sqlite "PRAGMA journal_mode=WAL;"
+```
+
+**See:** [DOCKER_DEPLOYMENT.md](docs/DOCKER_DEPLOYMENT.md#troubleshooting) for more troubleshooting.
+
+---
+
+## 📊 Multiple Applications
+
+Deploy separate backup containers for multiple databases:
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+
+services:
+  webapp_backup:
+    image: sqlite-gdrive-backup
+    environment:
+      - DB_PATH=/data/db.sqlite
+      - DRIVE_FOLDER_NAME=webapp_backups
+    volumes:
+      - /var/lib/webapp/db.sqlite:/data/db.sqlite:ro
+      - ./rclone.conf:/etc/rclone/rclone.conf:ro
+
+  api_backup:
+    image: sqlite-gdrive-backup
+    environment:
+      - DB_PATH=/data/db.sqlite
+      - DRIVE_FOLDER_NAME=api_backups
+    volumes:
+      - /var/lib/api/db.sqlite:/data/db.sqlite:ro
+      - ./rclone.conf:/etc/rclone/rclone.conf:ro
+```
+
+---
+
+## 📚 Documentation
+
+### Quick Start
+- **[DOCKER_QUICK_START.md](docs/DOCKER_QUICK_START.md)** - 5-minute deployment guide
+
+### Deployment
+- **[DOCKER_DEPLOYMENT.md](docs/DOCKER_DEPLOYMENT.md)** - Complete deployment guide
+- **[docker-compose.yml](docker-compose.yml)** - Docker Compose example
+- **[deploy_docker.yml](deploy_docker.yml)** - Ansible deployment
+
+### Integration
+- **[INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md)** - Parent playbook patterns
+- **[example_parent_playbook.yml](example_parent_playbook.yml)** - Working example
+
+### Configuration
+- **[OAUTH_SETUP_COMPLETE.md](docs/OAUTH_SETUP_COMPLETE.md)** - OAuth setup guide
+- **[GOOGLE_DRIVE_SETUP.md](docs/GOOGLE_DRIVE_SETUP.md)** - Google Drive setup
+- **[rclone.conf.example](rclone.conf.example)** - Configuration template
+
+### Technical
+- **[DEPLOYMENT_SUMMARY.md](docs/DEPLOYMENT_SUMMARY.md)** - Architecture and design
+
+---
+
+## 🔒 Security Best Practices
+
+1. **Read-only mounts** - Always mount databases as `:ro`
+2. **Protect rclone.conf** - Use `chmod 600`, never commit to git
+3. **Use secrets** - Consider Docker secrets or Ansible Vault
+4. **Isolate containers** - Use Docker networks
+5. **Rotate tokens** - Periodically reconnect OAuth
+
+---
+
+## 📈 Monitoring
+
+### Health Checks
+
+Built-in health check monitors cron process:
+
+```bash
+docker inspect backup | jq '.[0].State.Health'
+```
+
+### Log Monitoring
+
+Monitor backup success/failure:
+
+```bash
+# Real-time logs
+docker logs -f backup
+
+# Check for errors
+docker logs backup 2>&1 | grep ERROR
+
+# Successful backups
+docker logs backup 2>&1 | grep "completed successfully"
+```
+
+### Alerting
+
+Integrate with monitoring systems:
+
+```bash
+#!/bin/bash
+# Simple monitoring script
+LOGS=$(docker logs --since 24h backup 2>&1)
+
+if echo "$LOGS" | grep -q "ERROR:"; then
+    echo "CRITICAL: Backup errors detected"
+    exit 2
+elif echo "$LOGS" | grep -q "completed successfully"; then
+    echo "OK: Backup completed successfully"
+    exit 0
+else
+    echo "WARNING: No recent backup completion"
+    exit 1
+fi
+```
+
+---
+
+## 🚀 Production Checklist
+
+Before deploying to production:
+
+- [ ] OAuth configured and tested
+- [ ] Database path verified
+- [ ] Backup schedule configured
+- [ ] Manual backup tested successfully
+- [ ] Backup appears in Google Drive
+- [ ] Container restarts automatically
+- [ ] Logs are being captured
+- [ ] Monitoring/alerting configured
+- [ ] Restore procedure documented and tested
+- [ ] rclone.conf backed up securely
+
+---
+
+## 🤝 Contributing
+
+This is a production-focused backup tool. Contributions welcome:
+
+1. Fork the repository
+2. Create a feature branch
+3. Test thoroughly
+4. Submit pull request
+
+---
+
+## 📝 License
+
+MIT License - use freely in personal and commercial projects.
+
+---
+
+## ❓ Support
+
+- **Documentation:** Check the docs/ directory
+- **Issues:** GitHub Issues
+- **Examples:** See example_parent_playbook.yml
+
+---
+
+## 🎯 Use Cases
+
+- **Web applications** - Backup application databases
+- **API services** - Protect transactional data
+- **IoT devices** - Backup sensor/device data
+- **Development** - Automated dev environment backups
+- **Personal projects** - Backup hobby project databases
+- **Multi-tenant** - Separate backups per tenant/customer
+
+---
+
+**Built with:** Docker, Rclone, SQLite, Bash, Ansible
