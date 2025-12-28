@@ -1,0 +1,174 @@
+---
+# Example Parent Playbook
+# This demonstrates how to integrate the Google Drive backup project
+# into a larger Ansible deployment workflow.
+
+- name: Example - Deploy Application with Google Drive Backups
+  hosts: production_servers
+  become: yes
+  vars:
+    # --- Application Configuration ---
+    app_name: "myapp"
+    app_docker_image: "myorg/myapp:latest"
+    app_database_path: "/var/lib/myapp/db.sqlite"
+
+    # --- Backup Repository Configuration ---
+    backup_repo_url: "https://github.com/yourorg/gdrive-backup.git"
+    backup_repo_version: "main"  # or a specific tag/commit
+    backup_repo_dest: "/opt/gdrive-backup"
+
+    # --- Backup Configuration ---
+    gdrive_remote_name: "gdrive"
+    gdrive_folder_name: "production_backups"
+    backup_schedule: "0 3 * * *"  # 3 AM daily
+
+    # --- Rclone Configuration ---
+    # Path where your rclone.conf will be stored on the server
+    rclone_config_source: "files/rclone.conf"  # In your parent playbook's files/
+    rclone_config_dest: "/etc/gdrive-backup/rclone.conf"
+
+  tasks:
+    # ===================================================================
+    # PHASE 1: Deploy Your Main Application
+    # ===================================================================
+
+    - name: Install Docker and dependencies
+      apt:
+        name:
+          - docker.io
+          - python3-docker
+          - git
+        state: present
+        update_cache: yes
+
+    - name: Ensure Docker service is running
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Create application directory
+      file:
+        path: "/var/lib/{{ app_name }}"
+        state: directory
+        mode: '0755'
+
+    - name: Deploy main application container
+      community.docker.docker_container:
+        name: "{{ app_name }}"
+        image: "{{ app_docker_image }}"
+        state: started
+        restart_policy: unless-stopped
+        volumes:
+          - "/var/lib/{{ app_name }}:/data"
+        ports:
+          - "8080:8080"
+
+    - name: Wait for application to create database
+      wait_for:
+        path: "{{ app_database_path }}"
+        timeout: 60
+
+    # ===================================================================
+    # PHASE 2: Clone and Deploy Backup System
+    # ===================================================================
+
+    - name: Clone Google Drive backup repository
+      git:
+        repo: "{{ backup_repo_url }}"
+        dest: "{{ backup_repo_dest }}"
+        version: "{{ backup_repo_version }}"
+        force: yes
+      tags: ['backup']
+
+    - name: Ensure rclone config directory exists
+      file:
+        path: "{{ rclone_config_dest | dirname }}"
+        state: directory
+        mode: '0700'
+      tags: ['backup']
+
+    - name: Deploy rclone configuration
+      copy:
+        src: "{{ rclone_config_source }}"
+        dest: "{{ rclone_config_dest }}"
+        mode: '0600'
+      tags: ['backup']
+
+    - name: Include backup deployment playbook
+      include_tasks:
+        file: "{{ backup_repo_dest }}/deploy_docker.yml"
+        apply:
+          tags: ['backup']
+      vars:
+        container_name: "{{ app_name }}_backup"
+        db_path: "{{ app_database_path }}"
+        rclone_remote_name: "{{ gdrive_remote_name }}"
+        drive_folder_name: "{{ gdrive_folder_name }}"
+        backup_schedule: "{{ backup_schedule }}"
+        rclone_config_path: "{{ rclone_config_dest }}"
+        run_on_startup: "false"
+      tags: ['backup']
+
+    # ===================================================================
+    # PHASE 3: Verification
+    # ===================================================================
+
+    - name: Verify application is running
+      community.docker.docker_container_info:
+        name: "{{ app_name }}"
+      register: app_container
+      tags: ['verify']
+
+    - name: Verify backup container is running
+      community.docker.docker_container_info:
+        name: "{{ app_name }}_backup"
+      register: backup_container
+      tags: ['backup', 'verify']
+
+    - name: Display deployment summary
+      debug:
+        msg: |
+          ========================================
+          DEPLOYMENT COMPLETE
+          ========================================
+
+          Application: {{ app_name }}
+            Status: {{ app_container.container.State.Status }}
+            Database: {{ app_database_path }}
+
+          Backup System:
+            Container: {{ app_name }}_backup
+            Status: {{ backup_container.container.State.Status }}
+            Remote: {{ gdrive_remote_name }}:{{ gdrive_folder_name }}
+            Schedule: {{ backup_schedule }}
+
+          Commands:
+            - View app logs: docker logs -f {{ app_name }}
+            - View backup logs: docker logs -f {{ app_name }}_backup
+            - Manual backup: docker exec {{ app_name }}_backup /scripts/backup_sqlite.sh
+            - Check backups: rclone ls {{ gdrive_remote_name }}:{{ gdrive_folder_name }} --config {{ rclone_config_dest }}
+      tags: ['verify']
+
+# =====================================================================
+# USAGE INSTRUCTIONS
+# =====================================================================
+#
+# 1. Prerequisites:
+#    - Set up your rclone config with Google Drive OAuth
+#    - Copy rclone.conf to your parent playbook's files/ directory
+#    - Update the vars section with your configuration
+#
+# 2. Run the full playbook:
+#    ansible-playbook example_parent_playbook.yml -i inventory.ini
+#
+# 3. Run only backup deployment:
+#    ansible-playbook example_parent_playbook.yml -i inventory.ini --tags backup
+#
+# 4. Run only verification:
+#    ansible-playbook example_parent_playbook.yml -i inventory.ini --tags verify
+#
+# 5. Deploy to specific hosts:
+#    ansible-playbook example_parent_playbook.yml -i inventory.ini --limit prod-server-1
+#
+# =====================================================================

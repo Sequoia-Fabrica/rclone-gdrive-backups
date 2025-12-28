@@ -1,0 +1,129 @@
+version: '3.8'
+
+services:
+  # Example: Your main application
+  myapp:
+    image: myorg/myapp:latest
+    container_name: myapp
+    restart: unless-stopped
+    volumes:
+      - app_data:/data
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_PATH=/data/db.sqlite
+      - APP_ENV=production
+
+  # Google Drive Backup Container
+  gdrive_backup:
+    build: .
+    # Or use pre-built image:
+    # image: sqlite-gdrive-backup:latest
+    container_name: myapp_gdrive_backup
+    restart: unless-stopped
+    depends_on:
+      - myapp
+    environment:
+      # Path to database inside the container
+      - DB_PATH=/data/db.sqlite
+
+      # Rclone remote name (must match your rclone.conf)
+      - RCLONE_REMOTE_NAME=gdrive
+
+      # Folder name in Google Drive
+      - DRIVE_FOLDER_NAME=sqlite_backups
+
+      # Backup schedule (cron format)
+      # Default: 2:30 AM daily
+      - BACKUP_SCHEDULE=30 2 * * *
+
+      # Run backup immediately on container start
+      - RUN_ON_STARTUP=false
+
+      # Rclone config directory (usually no need to change)
+      - RCLONE_CONFIG_DIR=/etc/rclone
+
+      # Staging directory for backups (usually no need to change)
+      - BACKUP_STAGING_DIR=/backups
+    volumes:
+      # Mount the database (read-only for safety)
+      - app_data:/data:ro
+
+      # Mount your rclone configuration
+      # IMPORTANT: Copy your rclone.conf to ./rclone.conf first!
+      # Example: cp ~/.config/rclone/rclone.conf ./rclone.conf
+      - ./rclone.conf:/etc/rclone/rclone.conf:ro
+
+      # Optional: Persist logs outside container
+      # - ./logs:/var/log
+    healthcheck:
+      test: ["CMD", "pgrep", "cron"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  app_data:
+    driver: local
+
+# ============================================================================
+# USAGE INSTRUCTIONS
+# ============================================================================
+#
+# 1. Set up rclone configuration:
+#    rclone config
+#    # Create a remote named "gdrive" (or update RCLONE_REMOTE_NAME above)
+#    # Follow the OAuth flow for Google Drive
+#
+# 2. Copy your rclone config to this directory:
+#    cp ~/.config/rclone/rclone.conf ./rclone.conf
+#    chmod 600 ./rclone.conf
+#
+# 3. Update the environment variables above to match your setup
+#
+# 4. Start the services:
+#    docker-compose up -d
+#
+# 5. Verify the backup container is running:
+#    docker-compose ps
+#    docker-compose logs -f gdrive_backup
+#
+# 6. Run a manual backup to test:
+#    docker-compose exec gdrive_backup /scripts/backup_sqlite.sh
+#
+# 7. Verify the backup in Google Drive:
+#    rclone ls gdrive:sqlite_backups --config ./rclone.conf
+#
+# ============================================================================
+# USEFUL COMMANDS
+# ============================================================================
+#
+# View logs:
+#   docker-compose logs -f gdrive_backup
+#
+# Run manual backup:
+#   docker-compose exec gdrive_backup /scripts/backup_sqlite.sh
+#
+# Check cron schedule:
+#   docker-compose exec gdrive_backup crontab -l
+#
+# Access backup container shell:
+#   docker-compose exec gdrive_backup /bin/bash
+#
+# Stop services:
+#   docker-compose down
+#
+# Stop and remove volumes:
+#   docker-compose down -v
+#
+# Rebuild the backup image:
+#   docker-compose build gdrive_backup
+#   docker-compose up -d gdrive_backup
+#
+# ============================================================================

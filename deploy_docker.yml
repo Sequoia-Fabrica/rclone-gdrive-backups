@@ -1,0 +1,157 @@
+---
+- name: Deploy SQLite Google Drive Backup as Docker Container
+  hosts: all
+  become: yes
+  vars:
+    # --- Docker Container Configuration ---
+    container_name: "sqlite_gdrive_backup"
+    image_name: "sqlite-gdrive-backup"
+    image_tag: "latest"
+
+    # --- Backup Configuration ---
+    # Path to the SQLite database on the host that you want to backup
+    db_path: "/var/lib/myapp/db.sqlite"
+
+    # The rclone remote name (must match your rclone.conf)
+    rclone_remote_name: "gdrive"
+
+    # The folder name inside Google Drive where backups will be stored
+    drive_folder_name: "sqlite_backups"
+
+    # Cron schedule for backups (default: 2:30 AM daily)
+    backup_schedule: "30 2 * * *"
+
+    # Run a backup immediately when container starts
+    run_on_startup: "false"
+
+    # --- Path Configuration ---
+    # Where to store rclone config on the host
+    rclone_config_path: "/etc/gdrive-backup/rclone.conf"
+
+    # Temporary directory for building the Docker image
+    build_context_path: "/tmp/gdrive-backup-build"
+
+  tasks:
+    - name: Ensure Docker is installed
+      apt:
+        name:
+          - docker.io
+          - python3-docker
+        state: present
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Ensure Docker service is running
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Create build context directory
+      file:
+        path: "{{ build_context_path }}"
+        state: directory
+        mode: '0755'
+
+    - name: Copy Dockerfile to host
+      copy:
+        src: Dockerfile
+        dest: "{{ build_context_path }}/Dockerfile"
+        mode: '0644'
+
+    - name: Create scripts directory in build context
+      file:
+        path: "{{ build_context_path }}/scripts"
+        state: directory
+        mode: '0755'
+
+    - name: Copy backup script to host
+      copy:
+        src: scripts/backup_sqlite.sh
+        dest: "{{ build_context_path }}/scripts/backup_sqlite.sh"
+        mode: '0755'
+
+    - name: Copy entrypoint script to host
+      copy:
+        src: scripts/entrypoint.sh
+        dest: "{{ build_context_path }}/scripts/entrypoint.sh"
+        mode: '0755'
+
+    - name: Build Docker image
+      community.docker.docker_image:
+        name: "{{ image_name }}"
+        tag: "{{ image_tag }}"
+        source: build
+        build:
+          path: "{{ build_context_path }}"
+        state: present
+        force_source: yes
+
+    - name: Ensure rclone config directory exists
+      file:
+        path: "{{ rclone_config_path | dirname }}"
+        state: directory
+        mode: '0700'
+
+    - name: Check if rclone config exists
+      stat:
+        path: "{{ rclone_config_path }}"
+      register: rclone_config_stat
+
+    - name: Warning if rclone config is missing
+      debug:
+        msg: |
+          WARNING: Rclone config not found at {{ rclone_config_path }}
+          You must provide your rclone.conf file before the container can run.
+          Copy your rclone config:
+            scp ~/.config/rclone/rclone.conf {{ inventory_hostname }}:{{ rclone_config_path }}
+      when: not rclone_config_stat.stat.exists
+
+    - name: Stop existing container if running
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        state: absent
+      ignore_errors: yes
+
+    - name: Deploy backup container
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        image: "{{ image_name }}:{{ image_tag }}"
+        state: started
+        restart_policy: unless-stopped
+        env:
+          DB_PATH: "/data/db.sqlite"
+          RCLONE_REMOTE_NAME: "{{ rclone_remote_name }}"
+          DRIVE_FOLDER_NAME: "{{ drive_folder_name }}"
+          BACKUP_SCHEDULE: "{{ backup_schedule }}"
+          RUN_ON_STARTUP: "{{ run_on_startup }}"
+          RCLONE_CONFIG_DIR: "/etc/rclone"
+        volumes:
+          - "{{ db_path }}:/data/db.sqlite:ro"
+          - "{{ rclone_config_path }}:/etc/rclone/rclone.conf:ro"
+        log_driver: "json-file"
+        log_options:
+          max-size: "10m"
+          max-file: "3"
+      when: rclone_config_stat.stat.exists
+
+    - name: Display container status
+      debug:
+        msg: |
+          Container '{{ container_name }}' deployed successfully!
+
+          Configuration:
+            - Database: {{ db_path }}
+            - Remote: {{ rclone_remote_name }}:{{ drive_folder_name }}
+            - Schedule: {{ backup_schedule }}
+
+          Useful commands:
+            - View logs: docker logs -f {{ container_name }}
+            - Run manual backup: docker exec {{ container_name }} /scripts/backup_sqlite.sh
+            - Check container status: docker ps | grep {{ container_name }}
+      when: rclone_config_stat.stat.exists
+
+    - name: Cleanup build context
+      file:
+        path: "{{ build_context_path }}"
+        state: absent

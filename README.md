@@ -2,6 +2,30 @@
 
 Automated SQLite database backup system that safely backs up databases to Google Drive using rclone and Ansible.
 
+## 📦 Deployment Options
+
+This project supports multiple deployment methods:
+
+- **Docker Container** (Recommended for production) - [See DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md)
+- **Direct VM Deployment** (Development/testing)
+- **Integration with Parent Ansible Playbooks** - [See example_parent_playbook.yml](example_parent_playbook.yml)
+
+### Quick Deploy as Docker Container
+
+```bash
+# Clone the repository
+git clone https://github.com/yourorg/gdrive-backup.git
+cd gdrive-backup
+
+# Run the Ansible playbook to deploy as Docker container
+ansible-playbook deploy_docker.yml -i production_inventory.ini
+
+# Or use docker-compose
+docker-compose up -d
+```
+
+👉 **See [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md) for complete Docker deployment guide**
+
 ## 🚨 Important: M3 Mac Users
 
 **VirtualBox does not work on Apple Silicon (M1/M2/M3) Macs!**
@@ -67,18 +91,26 @@ This system provides **automated, safe SQLite database backups** with these feat
 
 ```
 gdrive_backup_test/
-├── README.md                    # This file
-├── QUICKSTART.md                # Fast setup guide
-├── SETUP_M3_MAC.md              # Detailed M3 Mac guide
-├── setup_m3.sh                  # Automated setup script ⭐
-├── diagnose.sh                  # Diagnostic tool
-├── inventory.ini                # Ansible inventory (auto-generated)
-├── playbook.yml                 # Ansible playbook (main config)
+├── README.md                         # This file
+├── QUICKSTART.md                     # Fast setup guide for M3 Mac
+├── SETUP_M3_MAC.md                   # Detailed M3 Mac guide
+├── DOCKER_DEPLOYMENT.md              # Docker deployment guide ⭐
+├── docker-compose.yml                # Docker Compose example ⭐
+├── Dockerfile                        # Docker image definition ⭐
+├── setup_m3.sh                       # Automated M3 Mac setup script
+├── diagnose.sh                       # Diagnostic tool
+├── inventory.ini                     # Ansible inventory (auto-generated)
+├── playbook.yml                      # Ansible playbook (VM deployment)
+├── deploy_docker.yml                 # Ansible playbook (Docker deployment) ⭐
+├── example_parent_playbook.yml       # Integration example ⭐
+├── scripts/                          # Docker container scripts ⭐
+│   ├── backup_sqlite.sh              # Backup script for Docker
+│   ├── entrypoint.sh                 # Container entrypoint
 ├── files/
-│   └── credentials.json         # Google service account credentials
+│   └── credentials.json              # Google service account credentials
 ├── templates/
-│   ├── backup_script.sh.j2      # Backup script template
-│   └── rclone.conf.j2           # Rclone configuration template
+│   ├── backup_script.sh.j2           # Backup script template (VM)
+│   └── rclone.conf.j2                # Rclone configuration template
 └── GEMINI_DOCS/
     └── initial_project_outline.md
 ```
@@ -178,12 +210,19 @@ ansible-playbook -i inventory.ini playbook.yml
 
 ## 🚀 Next Steps
 
+### For Development/Testing (M3 Mac)
 1. ✅ Run `./setup_m3.sh` to create the VM
 2. ✅ Run the playbook to configure everything
-3. ✅ Test with dummy credentials
-4. 🔜 Get real Google Drive credentials
-5. 🔜 Update credentials and re-run playbook
-6. 🔜 Deploy to production server (same playbook!)
+3. ✅ Test with OAuth credentials
+
+### For Production Deployment
+1. 🔜 Set up Google Drive OAuth (see [OAUTH_SETUP_COMPLETE.md](OAUTH_SETUP_COMPLETE.md))
+2. 🔜 Choose deployment method:
+   - **Docker** (recommended): See [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md)
+   - **Direct VM**: Use `playbook.yml`
+   - **Parent playbook**: See [example_parent_playbook.yml](example_parent_playbook.yml)
+3. 🔜 Test backup and restore procedures
+4. 🔜 Set up monitoring and alerting
 
 ## 📊 System Requirements
 
@@ -193,14 +232,64 @@ ansible-playbook -i inventory.ini playbook.yml
 - **Homebrew** package manager
 - **Internet connection** for package downloads
 
+## 🐳 Docker Deployment
+
+This project can be deployed as a Docker container for production use:
+
+### Features
+- ✅ **Containerized** - Isolated, portable deployment
+- ✅ **Ansible Integration** - Deploy with `deploy_docker.yml`
+- ✅ **Docker Compose** - Simple multi-container setups
+- ✅ **Scheduled Backups** - Built-in cron scheduler
+- ✅ **Easy Integration** - Include in parent playbooks
+
+### Quick Docker Deploy
+
+```bash
+# Build and deploy with Ansible
+ansible-playbook deploy_docker.yml -i production.ini
+
+# Or use Docker Compose
+docker-compose up -d
+
+# Or manual Docker run
+docker run -d \
+  --name sqlite_backup \
+  -v /path/to/db.sqlite:/data/db.sqlite:ro \
+  -v /path/to/rclone.conf:/etc/rclone/rclone.conf:ro \
+  -e RCLONE_REMOTE_NAME=gdrive \
+  -e DRIVE_FOLDER_NAME=backups \
+  sqlite-gdrive-backup:latest
+```
+
+**Full documentation:** [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md)
+
+## 🔗 Integration with Existing Infrastructure
+
+If you have an existing Ansible infrastructure, you can easily integrate this backup system:
+
+```yaml
+# In your main playbook
+- name: Deploy backups
+  include_tasks: "{{ backup_repo_dest }}/deploy_docker.yml"
+  vars:
+    db_path: "/var/lib/myapp/db.sqlite"
+    rclone_remote_name: "gdrive"
+    drive_folder_name: "production_backups"
+```
+
+See [example_parent_playbook.yml](example_parent_playbook.yml) for a complete example.
+
 ## ℹ️ About
 
 This project demonstrates:
 - Infrastructure as Code with Ansible
 - Safe database backup strategies
-- Google Drive integration via service accounts
+- Google Drive integration via OAuth
+- Docker containerization and orchestration
 - Cross-platform virtualization (Multipass vs VirtualBox)
 - ARM/Apple Silicon compatibility solutions
+- Integration patterns for larger infrastructures
 
 ## 📝 License
 
@@ -209,6 +298,7 @@ This is a demonstration/learning project. Use and modify as needed.
 ---
 
 **Having issues?** Check:
-1. [QUICKSTART.md](QUICKSTART.md) for step-by-step instructions
-2. [SETUP_M3_MAC.md](SETUP_M3_MAC.md) for detailed troubleshooting
-3. Run `./diagnose.sh` to identify problems automatically
+1. [QUICKSTART.md](QUICKSTART.md) for step-by-step instructions (M3 Mac)
+2. [SETUP_M3_MAC.md](SETUP_M3_MAC.md) for detailed troubleshooting (M3 Mac)
+3. [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md) for Docker deployment and troubleshooting
+4. Run `./diagnose.sh` to identify problems automatically (M3 Mac only)
