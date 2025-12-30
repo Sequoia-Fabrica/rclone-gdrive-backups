@@ -1,20 +1,7 @@
 version: "3.8"
 
 services:
-  # ============================================================================
-  # Example: Your main application
-  # ============================================================================
-  myapp:
-    image: myorg/myapp:latest
-    container_name: myapp
-    restart: unless-stopped
-    volumes:
-      - app_data:/data
-    ports:
-      - "8080:8080"
-    environment:
-      - DATABASE_PATH=/data/db.sqlite
-      - APP_ENV=production
+
 
   # ============================================================================
   # Google Drive Backup Container
@@ -26,8 +13,6 @@ services:
     # image: sqlite-gdrive-backup:latest
     container_name: myapp_gdrive_backup
     restart: unless-stopped
-    depends_on:
-      - myapp
     environment:
       # ----------------------------------------------------------------------
       # DATABASE CONFIGURATION (use one or more methods)
@@ -85,8 +70,13 @@ services:
       - BACKUP_STAGING_DIR=/backups
 
     volumes:
-      # Mount databases directory (read-only for safety)
-      - app_data:/data:ro
+      # Mount your database path(s) from the host (read-only for safety)
+      # Example for single database:
+      # - /var/lib/myapp/db.sqlite:/data/db.sqlite:ro
+      # Example for directory of databases:
+      # - /var/lib/myapp:/data:ro
+      # REPLACE WITH YOUR ACTUAL DATABASE PATH:
+      - /path/to/your/database:/data:ro
 
       # Mount your rclone configuration
       # IMPORTANT: Copy your rclone.conf to ./rclone.conf first!
@@ -108,9 +98,8 @@ services:
         max-size: "10m"
         max-file: "3"
 
-volumes:
-  app_data:
-    driver: local
+# volumes:
+#   # No named volumes needed - mount host paths directly above
 
 # ============================================================================
 # MULTI-DATABASE EXAMPLES
